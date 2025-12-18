@@ -67,6 +67,10 @@ app.get('/health', (req, res) => {
   res.status(200).json({ ok: true, uptime: process.uptime() });
 });
 
+app.get('/', (req, res) => res.status(200).send('API ONLINE'));
+app.get('/health', (req, res) => res.status(200).json({ ok: true }));
+app.get('/favicon.ico', (req, res) => res.status(204).end());
+
 // ==================================================
 // DEPENDÊNCIAS DE APP
 // ==================================================
