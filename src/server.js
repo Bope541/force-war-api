@@ -88,14 +88,18 @@ function isPasswordStrong(password) {
     return password.length >= minLength && hasUpper && hasLower && hasNumber && hasSymbol;
 }
 
+const cors = require('cors');
+
 app.use(cors({
-  origin: 'https://force-war-store-pago-production.up.railway.app',
+  origin: [
+    'https://bope541.github.io',
+    'https://force-war-store-pago-production.up.railway.app'
+  ],
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true
 }));
 
-// 🔴 ESSENCIAL PARA O PREFLIGHT
 app.options('*', cors());
 
 app.use(express.json());
