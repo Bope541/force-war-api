@@ -88,13 +88,22 @@ function isPasswordStrong(password) {
     return password.length >= minLength && hasUpper && hasLower && hasNumber && hasSymbol;
 }
 
+const allowedOrigins = [
+  'https://bope541.github.io',
+  'https://force-war-store-pago-production.up.railway.app'
+];
+
 app.use(cors({
-  origin: [
-    'https://bope541.github.io',
-    'https://force-war-store-pago-production.up.railway.app'
-  ],
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  origin: (origin, callback) => {
+    // Permite Postman / curl / servidor
+    if (!origin) return callback(null, true);
+
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+
+    return callback(new Error('Not allowed by CORS'));
+  },
   credentials: true
 }));
 
