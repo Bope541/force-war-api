@@ -1,11 +1,61 @@
 'use strict';
 
-require('dotenv').config(); // 🔥 SEMPRE PRIMEIRO
+// =====================================
+// 🔥 DOTENV SEMPRE PRIMEIRO
+// =====================================
+require('dotenv').config();
 
 console.log('🔥 SERVER INICIANDO');
+
+// =====================================
+// IMPORTS
+// =====================================
 const express = require('express');
-const path = require('path');
-const fs = require('fs');
+const mongoose = require('mongoose');
+
+// =====================================
+// APP
+// =====================================
+const app = express();
+
+// =====================================
+// ROTAS BÁSICAS (ANTES DE TUDO)
+// =====================================
+app.get('/', (req, res) => res.status(200).send('API ONLINE'));
+app.get('/health', (req, res) => res.status(200).json({ ok: true }));
+app.get('/favicon.ico', (req, res) => res.status(204).end());
+
+// =====================================
+// LISTEN — IMEDIATO (CRÍTICO)
+// =====================================
+const PORT = process.env.PORT || 8080;
+
+app.listen(PORT, '0.0.0.0', () => {
+  console.log('🚀 API ESCUTANDO NA PORTA', PORT);
+});
+
+// =====================================
+// INICIALIZAÇÕES EM BACKGROUND
+// =====================================
+(async () => {
+  try {
+    console.log('🔄 Inicializando serviços...');
+
+    if (!process.env.MONGODB_URI) {
+      throw new Error('MONGODB_URI não definida');
+    }
+
+    await mongoose.connect(process.env.MONGODB_URI);
+    console.log('✅ Mongo conectado');
+
+    // 👉 COMENTE ISSO ATÉ TER A FUNÇÃO DEFINIDA
+    // initAuth(app);
+
+    console.log('✅ Serviços carregados');
+  } catch (err) {
+    console.error('❌ Erro ao inicializar serviços:', err.message);
+  }
+})();
 
 const session = require('express-session');
 const passport = require('passport');
@@ -20,12 +70,7 @@ console.log('🔥 SERVER.JS DA API CARREGADO');
 // Defina no Railway:
 // FRONTEND_ORIGIN=https://SEU-SITE.com
 // (se tiver mais de um, use separado por vírgula)
-const allowedOrigins = (process.env.FRONTEND_ORIGIN || '')
-  .split(',')
-  .map(s => s.trim())
-  .filter(Boolean);
 
-const app = express();
 
 // 🔐 IMPORTANTE PARA Railway / Proxy / HTTPS
 app.set('trust proxy', 1);
@@ -66,10 +111,6 @@ app.use((req, res, next) => {
 app.get('/health', (req, res) => {
   res.status(200).json({ ok: true, uptime: process.uptime() });
 });
-
-app.get('/', (req, res) => res.status(200).send('API ONLINE'));
-app.get('/health', (req, res) => res.status(200).json({ ok: true }));
-app.get('/favicon.ico', (req, res) => res.status(204).end());
 
 // ==================================================
 // DEPENDÊNCIAS DE APP
@@ -2280,12 +2321,5 @@ process.on('unhandledRejection', (err) => {
 });
 
 console.log('🔥 CHEGOU ANTES DO LISTEN');
-
-const PORT = process.env.PORT || 8080;
-console.log('🌐 PORT DO RAILWAY:', process.env.PORT);
-
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 API escutando na porta ${PORT}`);
-});
 
 //-- Revisado!
