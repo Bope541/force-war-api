@@ -57,25 +57,34 @@ const efiOptions = {
     certificate: process.env.EFI_CERTIFICADO_PATH // Isso vai ser ignorado na Discloud
 };
 
-let efi; 
+let efi = null;
+
 try {
-    // 1. Ele checa se está na Discloud (procurando o "texto gigante")
     if (process.env.EFI_CERTIFICADO_BASE64) {
-        console.log("Carregando certificado EFI a partir do Base64 (Modo Discloud)...");
-        const certBuffer = Buffer.from(process.env.EFI_CERTIFICADO_BASE64, 'base64');
-        efiOptions.certificate = certBuffer; 
+        console.log("Carregando certificado EFI via Base64...");
+        const certBuffer = Buffer.from(
+            process.env.EFI_CERTIFICADO_BASE64,
+            'base64'
+        );
+
+        efiOptions.certificate = certBuffer;
+
+        efi = new Gerencianet(efiOptions);
+        console.log(`✅ EFI SDK inicializado (Base64). Sandbox: ${efiOptions.sandbox}`);
     } 
-    // 2. Se não, ele checa se está no seu PC (procurando o "arquivo")
-    else if (!efiOptions.certificate || !fs.existsSync(efiOptions.certificate)) {
-        throw new Error(`Certificado não encontrado em: ${efiOptions.certificate}. Verifique seu .env e o caminho do arquivo.`);
+    else if (efiOptions.certificate && fs.existsSync(efiOptions.certificate)) {
+        console.log("Carregando certificado EFI via arquivo...");
+        efi = new Gerencianet(efiOptions);
+        console.log(`✅ EFI SDK inicializado (Arquivo). Sandbox: ${efiOptions.sandbox}`);
+    } 
+    else {
+        console.warn("⚠️ EFI desativada: certificado não configurado.");
+        // NÃO quebra o app
     }
-    
-    efi = new Gerencianet(efiOptions); 
-    console.log(`SDK da EFI inicializado. Modo Sandbox: ${efiOptions.sandbox}`);
 } catch (error) {
-    console.error('Erro CRÍTICO ao inicializar o SDK da EFI:');
+    console.error("❌ Falha ao inicializar EFI SDK:");
     console.error(error.message);
-    process.exit(1); 
+    // NÃO usa process.exit
 }
 // --- Helper de Validação de Senha ---
 function isPasswordStrong(password) {
