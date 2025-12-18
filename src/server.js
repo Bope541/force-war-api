@@ -1,7 +1,6 @@
 require('dotenv').config(); // 🔥 SEMPRE PRIMEIRO
 
 const express = require('express');
-const cors = require('cors');
 const session = require('express-session');
 const passport = require('passport');
 const DiscordStrategy = require('passport-discord').Strategy;
@@ -18,52 +17,41 @@ if (!CHAVE_PIX) {
 
 const app = express();
 
-// 🔐 IMPORTANTE PARA VPS / HTTPS
+// 🔐 IMPORTANTE PARA VPS / HTTPS (Railway / Proxy)
 app.set('trust proxy', 1);
 
 // ==================================================
-// 🔥 BYPASS TOTAL PARA PREFLIGHT (ANTES DE TUDO)
-// ==================================================
-app.use((req, res, next) => {
-    if (req.method === 'OPTIONS') {
-        res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
-        res.header('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
-        res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-        res.header('Access-Control-Allow-Credentials', 'true');
-        return res.sendStatus(204);
-    }
-    next();
-});
-
-// ==================================================
-// ✅ CORS — TEM QUE VIR ANTES DE TUDO
+// 🔥 CORS MANUAL DEFINITIVO (SEM DEPENDÊNCIA)
 // ==================================================
 const allowedOrigins = [
     'https://bope541.github.io',
     'https://force-war-store-pago-production.up.railway.app'
 ];
 
-app.use(cors({
-    origin: function (origin, callback) {
-        // Permite Postman / curl / server-to-server
-        if (!origin) return callback(null, true);
+app.use((req, res, next) => {
+    const origin = req.headers.origin;
 
-        // Permite domínios confiáveis
-        if (allowedOrigins.includes(origin)) {
-            return callback(null, true);
-        }
+    if (allowedOrigins.includes(origin)) {
+        res.setHeader('Access-Control-Allow-Origin', origin);
+        res.setHeader('Vary', 'Origin');
+        res.setHeader('Access-Control-Allow-Credentials', 'true');
+    }
 
-        // ❗ NÃO lança erro (não quebra preflight)
-        return callback(null, false);
-    },
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
-    credentials: true
-}));
+    res.setHeader(
+        'Access-Control-Allow-Headers',
+        'Content-Type, Authorization'
+    );
+    res.setHeader(
+        'Access-Control-Allow-Methods',
+        'GET, POST, PUT, DELETE, OPTIONS'
+    );
 
-// 🔴 RESPONDE PRE-FLIGHT SEM BLOQUEAR
-app.options('*', (req, res) => {
-    res.sendStatus(204);
+    // 🔴 PRE-FLIGHT TERMINA AQUI
+    if (req.method === 'OPTIONS') {
+        return res.sendStatus(204);
+    }
+
+    next();
 });
 
 // ==================================================
@@ -92,7 +80,7 @@ const Product = require('./models/Product');
 const Key = require('./models/Key');
 const Coupon = require('./models/Coupon');
 const Affiliate = require('./models/Affiliate');
-const Category = require('./models/Category'); // (NOVO)
+const Category = require('./models/Category');
 
 // ==================================================
 // BANCO DE DADOS
@@ -100,7 +88,7 @@ const Category = require('./models/Category'); // (NOVO)
 const MONGODB_URI = process.env.MONGODB_URI;
 
 mongoose.connect(MONGODB_URI)
-    .then(() => console.log('Conectado ao MongoDB!'))
+    .then(() => console.log('✅ Conectado ao MongoDB!'))
     .catch(err => {
         console.error('❌ Erro ao conectar MongoDB:', err);
         process.exit(1);
