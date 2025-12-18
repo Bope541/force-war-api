@@ -2,6 +2,7 @@
 
 require('dotenv').config(); // 🔥 SEMPRE PRIMEIRO
 
+console.log('🔥 SERVER INICIANDO');
 const express = require('express');
 const path = require('path');
 const fs = require('fs');
@@ -12,8 +13,6 @@ const DiscordStrategy = require('passport-discord').Strategy;
 const LocalStrategy = require('passport-local').Strategy;
 
 console.log('🔥 SERVER.JS DA API CARREGADO');
-
-const PORT = Number(process.env.PORT) || 8080;
 
 // ==================================================
 // CORS (CORRETO PARA credentials: 'include')
@@ -2266,13 +2265,6 @@ app.post('/api/affiliate/request-withdrawal', requireAffiliateApi, async (req, r
 });
 
 // ==================================================
-// START SERVER (RAILWAY SAFE)
-// ==================================================
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 Servidor rodando na porta ${PORT}`);
-});
-
-// ==================================================
 // PROTEÇÃO CONTRA CRASH
 // ==================================================
 process.on('uncaughtException', (err) => {
@@ -2281,6 +2273,13 @@ process.on('uncaughtException', (err) => {
 
 process.on('unhandledRejection', (err) => {
   console.error('unhandledRejection:', err);
+});
+
+console.log('🔥 CHEGOU ANTES DO LISTEN');
+
+const PORT = process.env.PORT || 8080;
+app.listen(PORT, '0.0.0.0', () => {
+  console.log('🚀 ESCUTANDO', PORT);
 });
 
 //-- Revisado!
