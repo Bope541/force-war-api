@@ -406,8 +406,8 @@ async function isAffiliate(req, res, next) {
 // ==================================================
 // ARQUIVOS ESTÁTICOS
 // ==================================================
-const PUBLIC_DIR = path.join(__dirname, '../public');
-app.use(express.static(PUBLIC_DIR));
+//const PUBLIC_DIR = path.join(__dirname, '../public');
+//app.use(express.static(PUBLIC_DIR));
 
 // ==================================================
 // ROTAS DE AUTENTICAÇÃO
