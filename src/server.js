@@ -57,34 +57,25 @@ const efiOptions = {
     certificate: process.env.EFI_CERTIFICADO_PATH // Isso vai ser ignorado na Discloud
 };
 
-let efi = null;
-
+let efi; 
 try {
+    // 1. Ele checa se está na Discloud (procurando o "texto gigante")
     if (process.env.EFI_CERTIFICADO_BASE64) {
-        console.log("Carregando certificado EFI via Base64...");
-        const certBuffer = Buffer.from(
-            process.env.EFI_CERTIFICADO_BASE64,
-            'base64'
-        );
-
-        efiOptions.certificate = certBuffer;
-
-        efi = new Gerencianet(efiOptions);
-        console.log(`✅ EFI SDK inicializado (Base64). Sandbox: ${efiOptions.sandbox}`);
+        console.log("Carregando certificado EFI a partir do Base64 (Modo Discloud)...");
+        const certBuffer = Buffer.from(process.env.EFI_CERTIFICADO_BASE64, 'base64');
+        efiOptions.certificate = certBuffer; 
     } 
-    else if (efiOptions.certificate && fs.existsSync(efiOptions.certificate)) {
-        console.log("Carregando certificado EFI via arquivo...");
-        efi = new Gerencianet(efiOptions);
-        console.log(`✅ EFI SDK inicializado (Arquivo). Sandbox: ${efiOptions.sandbox}`);
-    } 
-    else {
-        console.warn("⚠️ EFI desativada: certificado não configurado.");
-        // NÃO quebra o app
+    // 2. Se não, ele checa se está no seu PC (procurando o "arquivo")
+    else if (!efiOptions.certificate || !fs.existsSync(efiOptions.certificate)) {
+        throw new Error(`Certificado não encontrado em: ${efiOptions.certificate}. Verifique seu .env e o caminho do arquivo.`);
     }
+    
+    efi = new Gerencianet(efiOptions); 
+    console.log(`SDK da EFI inicializado. Modo Sandbox: ${efiOptions.sandbox}`);
 } catch (error) {
-    console.error("❌ Falha ao inicializar EFI SDK:");
+    console.error('Erro CRÍTICO ao inicializar o SDK da EFI:');
     console.error(error.message);
-    // NÃO usa process.exit
+    process.exit(1); 
 }
 // --- Helper de Validação de Senha ---
 function isPasswordStrong(password) {
@@ -1510,8 +1501,7 @@ app.post('/api/affiliate/request-withdrawal', isAuthenticated, isAffiliate, asyn
     }
 });
 
-
 // Inicia o servidor
-app.listen(port, () => {
-    console.log(`Servidor rodando em http://localhost:${port}`);
+app.listen(PORT, () => {
+    console.log(`🚀 Servidor rodando na porta ${PORT}`);
 });
