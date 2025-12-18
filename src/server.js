@@ -21,17 +21,58 @@ const app = express();
 // 🔐 IMPORTANTE PARA VPS / HTTPS
 app.set('trust proxy', 1);
 
+// ==================================================
+// ✅ CORS — TEM QUE VIR ANTES DE TUDO
+// ==================================================
+const allowedOrigins = [
+    'https://bope541.github.io',
+    'https://force-war-store-pago-production.up.railway.app'
+];
+
+app.use(cors({
+    origin: function (origin, callback) {
+        // Permite Postman / curl / server-to-server
+        if (!origin) return callback(null, true);
+
+        // Permite domínios confiáveis
+        if (allowedOrigins.includes(origin)) {
+            return callback(null, true);
+        }
+
+        // ❗ NÃO lança erro (não quebra preflight)
+        return callback(null, false);
+    },
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    credentials: true
+}));
+
+// 🔴 RESPONDE PRE-FLIGHT SEM BLOQUEAR
+app.options('*', (req, res) => {
+    res.sendStatus(204);
+});
+
+// ==================================================
+// BODY PARSER (DEPOIS DO CORS)
+// ==================================================
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// ==================================================
+// DEPENDÊNCIAS GERAIS
+// ==================================================
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const { Resend } = require('resend');
 
+const Gerencianet = require('gn-api-sdk-node');
+const fs = require('fs');
 
-const Gerencianet = require('gn-api-sdk-node'); 
-const fs = require('fs'); 
-
-// --- MODELOS ---
-const User = require('./models/User'); 
+// ==================================================
+// MODELOS
+// ==================================================
+const User = require('./models/User');
 const Order = require('./models/Order');
 const Product = require('./models/Product');
 const Key = require('./models/Key');
@@ -39,78 +80,48 @@ const Coupon = require('./models/Coupon');
 const Affiliate = require('./models/Affiliate');
 const Category = require('./models/Category'); // (NOVO)
 
-// --- CONFIGURAÇÃO DO BANCO DE DADOS ---
+// ==================================================
+// BANCO DE DADOS
+// ==================================================
 const MONGODB_URI = process.env.MONGODB_URI;
-mongoose.connect(MONGODB_URI, { }).then(() => {
-    console.log('Conectado ao MongoDB!');
-}).catch(err => console.error(err));
 
-// --- CONFIGURAÇÃO DO RESEND ---
+mongoose.connect(MONGODB_URI)
+    .then(() => console.log('Conectado ao MongoDB!'))
+    .catch(err => {
+        console.error('❌ Erro ao conectar MongoDB:', err);
+        process.exit(1);
+    });
+
+// ==================================================
+// RESEND
+// ==================================================
 const resend = new Resend(process.env.RESEND_API_KEY);
 
-// --- OPÇÕES DA EFI ---
-// --- OPÇÕES DA EFI ---
-// --- OPÇÕES DA EFI ---
+// ==================================================
+// EFI (PIX)
+// ==================================================
 const efiOptions = {
-    sandbox: process.env.EFI_SANDBOX === 'true', 
-    client_id: process.env.EFI_CLIENT_ID,        
-    client_secret: process.env.EFI_CLIENT_SECRET,  
-    certificate: process.env.EFI_CERTIFICADO_PATH // Isso vai ser ignorado na Discloud
+    sandbox: process.env.EFI_SANDBOX === 'true',
+    client_id: process.env.EFI_CLIENT_ID,
+    client_secret: process.env.EFI_CLIENT_SECRET,
+    certificate: process.env.EFI_CERTIFICADO_PATH
 };
 
-let efi; 
+let efi;
 try {
-    // 1. Ele checa se está na Discloud (procurando o "texto gigante")
     if (process.env.EFI_CERTIFICADO_BASE64) {
-        console.log("Carregando certificado EFI a partir do Base64 (Modo Discloud)...");
         const certBuffer = Buffer.from(process.env.EFI_CERTIFICADO_BASE64, 'base64');
-        efiOptions.certificate = certBuffer; 
-    } 
-    // 2. Se não, ele checa se está no seu PC (procurando o "arquivo")
-    else if (!efiOptions.certificate || !fs.existsSync(efiOptions.certificate)) {
-        throw new Error(`Certificado não encontrado em: ${efiOptions.certificate}. Verifique seu .env e o caminho do arquivo.`);
+        efiOptions.certificate = certBuffer;
+    } else if (!efiOptions.certificate || !fs.existsSync(efiOptions.certificate)) {
+        throw new Error(`Certificado não encontrado em: ${efiOptions.certificate}`);
     }
-    
-    efi = new Gerencianet(efiOptions); 
-    console.log(`SDK da EFI inicializado. Modo Sandbox: ${efiOptions.sandbox}`);
+
+    efi = new Gerencianet(efiOptions);
+    console.log(`SDK EFI inicializado. Sandbox: ${efiOptions.sandbox}`);
 } catch (error) {
-    console.error('Erro CRÍTICO ao inicializar o SDK da EFI:');
-    console.error(error.message);
-    process.exit(1); 
+    console.error('Erro CRÍTICO ao inicializar EFI:', error.message);
+    process.exit(1);
 }
-// --- Helper de Validação de Senha ---
-function isPasswordStrong(password) {
-    const minLength = 8;
-    const hasUpper = /[A-Z]/.test(password);
-    const hasLower = /[a-z]/.test(password);
-    const hasNumber = /[0-9]/.test(password);
-    const hasSymbol = /[^A-Za-z0-9]/.test(password);
-    return password.length >= minLength && hasUpper && hasLower && hasNumber && hasSymbol;
-}
-
-const allowedOrigins = [
-  'https://bope541.github.io',
-  'https://force-war-store-pago-production.up.railway.app'
-];
-
-app.use(cors({
-  origin: (origin, callback) => {
-    // Permite Postman / curl / servidor
-    if (!origin) return callback(null, true);
-
-    if (allowedOrigins.includes(origin)) {
-      return callback(null, true);
-    }
-
-    return callback(new Error('Not allowed by CORS'));
-  },
-  credentials: true
-}));
-
-app.options('*', cors());
-
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
 
 app.use(session({
     secret: process.env.SESSION_SECRET,
