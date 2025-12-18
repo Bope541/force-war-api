@@ -2278,8 +2278,10 @@ process.on('unhandledRejection', (err) => {
 console.log('🔥 CHEGOU ANTES DO LISTEN');
 
 const PORT = process.env.PORT || 8080;
+console.log('🌐 PORT DO RAILWAY:', process.env.PORT);
+
 app.listen(PORT, '0.0.0.0', () => {
-  console.log('🚀 ESCUTANDO', PORT);
+  console.log(`🚀 API escutando na porta ${PORT}`);
 });
 
 //-- Revisado!
