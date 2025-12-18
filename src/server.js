@@ -115,7 +115,6 @@ app.get('/health', (req, res) => {
 // ==================================================
 // DEPENDÊNCIAS DE APP
 // ==================================================
-const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const { Resend } = require('resend');
