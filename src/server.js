@@ -6,6 +6,7 @@ const passport = require('passport');
 const DiscordStrategy = require('passport-discord').Strategy;
 const LocalStrategy = require('passport-local').Strategy;
 const path = require('path');
+console.log('🔥 SERVER.JS DA API CARREGADO');
 
 const PORT = process.env.PORT || 8080;
 const CHAVE_PIX = process.env.EFI_CHAVE_PIX;
@@ -17,113 +18,78 @@ if (!CHAVE_PIX) {
 
 const app = express();
 
-// 🔐 IMPORTANTE PARA VPS / HTTPS (Railway / Proxy)
+// 🔐 IMPORTANTE PARA VPS / HTTPS
 app.set('trust proxy', 1);
 
-// ==================================================
-// 🔥 CORS MANUAL DEFINITIVO (SEM DEPENDÊNCIA)
-// ==================================================
-const allowedOrigins = [
-    'https://bope541.github.io',
-    'https://force-war-store-pago-production.up.railway.app'
-];
-
-app.use((req, res, next) => {
-    const origin = req.headers.origin;
-
-    if (allowedOrigins.includes(origin)) {
-        res.setHeader('Access-Control-Allow-Origin', origin);
-        res.setHeader('Vary', 'Origin');
-        res.setHeader('Access-Control-Allow-Credentials', 'true');
-    }
-
-    res.setHeader(
-        'Access-Control-Allow-Headers',
-        'Content-Type, Authorization'
-    );
-    res.setHeader(
-        'Access-Control-Allow-Methods',
-        'GET, POST, PUT, DELETE, OPTIONS'
-    );
-
-    // 🔴 PRE-FLIGHT TERMINA AQUI
-    if (req.method === 'OPTIONS') {
-        return res.sendStatus(204);
-    }
-
-    next();
-});
-
-// ==================================================
-// BODY PARSER (DEPOIS DO CORS)
-// ==================================================
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-
-// ==================================================
-// DEPENDÊNCIAS GERAIS
-// ==================================================
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const { Resend } = require('resend');
 
-const Gerencianet = require('gn-api-sdk-node');
-const fs = require('fs');
 
-// ==================================================
-// MODELOS
-// ==================================================
-const User = require('./models/User');
+const Gerencianet = require('gn-api-sdk-node'); 
+const fs = require('fs'); 
+
+// --- MODELOS ---
+const User = require('./models/User'); 
 const Order = require('./models/Order');
 const Product = require('./models/Product');
 const Key = require('./models/Key');
 const Coupon = require('./models/Coupon');
 const Affiliate = require('./models/Affiliate');
-const Category = require('./models/Category');
+const Category = require('./models/Category'); // (NOVO)
 
-// ==================================================
-// BANCO DE DADOS
-// ==================================================
+// --- CONFIGURAÇÃO DO BANCO DE DADOS ---
 const MONGODB_URI = process.env.MONGODB_URI;
+mongoose.connect(MONGODB_URI, { }).then(() => {
+    console.log('Conectado ao MongoDB!');
+}).catch(err => console.error(err));
 
-mongoose.connect(MONGODB_URI)
-    .then(() => console.log('✅ Conectado ao MongoDB!'))
-    .catch(err => {
-        console.error('❌ Erro ao conectar MongoDB:', err);
-        process.exit(1);
-    });
-
-// ==================================================
-// RESEND
-// ==================================================
+// --- CONFIGURAÇÃO DO RESEND ---
 const resend = new Resend(process.env.RESEND_API_KEY);
 
-// ==================================================
-// EFI (PIX)
-// ==================================================
+// --- OPÇÕES DA EFI ---
+// --- OPÇÕES DA EFI ---
+// --- OPÇÕES DA EFI ---
 const efiOptions = {
-    sandbox: process.env.EFI_SANDBOX === 'true',
-    client_id: process.env.EFI_CLIENT_ID,
-    client_secret: process.env.EFI_CLIENT_SECRET,
-    certificate: process.env.EFI_CERTIFICADO_PATH
+    sandbox: process.env.EFI_SANDBOX === 'true', 
+    client_id: process.env.EFI_CLIENT_ID,        
+    client_secret: process.env.EFI_CLIENT_SECRET,  
+    certificate: process.env.EFI_CERTIFICADO_PATH // Isso vai ser ignorado na Discloud
 };
 
-let efi;
+let efi; 
 try {
+    // 1. Ele checa se está na Discloud (procurando o "texto gigante")
     if (process.env.EFI_CERTIFICADO_BASE64) {
+        console.log("Carregando certificado EFI a partir do Base64 (Modo Discloud)...");
         const certBuffer = Buffer.from(process.env.EFI_CERTIFICADO_BASE64, 'base64');
-        efiOptions.certificate = certBuffer;
-    } else if (!efiOptions.certificate || !fs.existsSync(efiOptions.certificate)) {
-        throw new Error(`Certificado não encontrado em: ${efiOptions.certificate}`);
+        efiOptions.certificate = certBuffer; 
+    } 
+    // 2. Se não, ele checa se está no seu PC (procurando o "arquivo")
+    else if (!efiOptions.certificate || !fs.existsSync(efiOptions.certificate)) {
+        throw new Error(`Certificado não encontrado em: ${efiOptions.certificate}. Verifique seu .env e o caminho do arquivo.`);
     }
-
-    efi = new Gerencianet(efiOptions);
-    console.log(`SDK EFI inicializado. Sandbox: ${efiOptions.sandbox}`);
+    
+    efi = new Gerencianet(efiOptions); 
+    console.log(`SDK da EFI inicializado. Modo Sandbox: ${efiOptions.sandbox}`);
 } catch (error) {
-    console.error('Erro CRÍTICO ao inicializar EFI:', error.message);
-    process.exit(1);
+    console.error('Erro CRÍTICO ao inicializar o SDK da EFI:');
+    console.error(error.message);
+    process.exit(1); 
 }
+// --- Helper de Validação de Senha ---
+function isPasswordStrong(password) {
+    const minLength = 8;
+    const hasUpper = /[A-Z]/.test(password);
+    const hasLower = /[a-z]/.test(password);
+    const hasNumber = /[0-9]/.test(password);
+    const hasSymbol = /[^A-Za-z0-9]/.test(password);
+    return password.length >= minLength && hasUpper && hasLower && hasNumber && hasSymbol;
+}
+
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
 app.use(session({
     secret: process.env.SESSION_SECRET,
@@ -1536,7 +1502,8 @@ app.post('/api/affiliate/request-withdrawal', isAuthenticated, isAffiliate, asyn
     }
 });
 
+
 // Inicia o servidor
-app.listen(PORT, () => {
-    console.log(`🚀 Servidor rodando na porta ${PORT}`);
+app.listen(port, () => {
+    console.log(`Servidor rodando em http://localhost:${port}`);
 });
