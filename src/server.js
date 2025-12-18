@@ -1,6 +1,7 @@
 require('dotenv').config(); // 🔥 SEMPRE PRIMEIRO
 
 const express = require('express');
+const cors = require('cors');
 const session = require('express-session');
 const passport = require('passport');
 const DiscordStrategy = require('passport-discord').Strategy;
@@ -86,6 +87,16 @@ function isPasswordStrong(password) {
     const hasSymbol = /[^A-Za-z0-9]/.test(password);
     return password.length >= minLength && hasUpper && hasLower && hasNumber && hasSymbol;
 }
+
+app.use(cors({
+  origin: 'https://force-war-store-pago-production.up.railway.app',
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true
+}));
+
+// 🔴 ESSENCIAL PARA O PREFLIGHT
+app.options('*', cors());
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
