@@ -63,7 +63,7 @@ try {
     // 1. Ele checa se está na Discloud (procurando o "texto gigante")
     if (process.env.EFI_CERTIFICADO_BASE64) {
         console.log("Carregando certificado EFI a partir do Base64 (Modo Discloud)...");
-        const certBuffer = Buffer.from(process.env.EFI_CERTIFICADO_BASE64, 'base64');
+        const certBuffer = Buffer.from(process.env.EFI_SANDBOX, 'true');
         efiOptions.certificate = certBuffer; 
     } 
     // 2. Se não, ele checa se está no seu PC (procurando o "arquivo")
