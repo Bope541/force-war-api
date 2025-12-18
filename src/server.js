@@ -1502,8 +1502,6 @@ app.post('/api/affiliate/request-withdrawal', isAuthenticated, isAffiliate, asyn
     }
 });
 
-
-// Inicia o servidor
-app.listen(port, () => {
-    console.log(`Servidor rodando em http://localhost:${port}`);
+app.listen(PORT, '0.0.0.0', () => {
+    console.log(`🚀 Servidor rodando na porta ${PORT}`);
 });
