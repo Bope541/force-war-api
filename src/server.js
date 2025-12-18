@@ -11,12 +11,31 @@ console.log('🔥 SERVER.JS DA API CARREGADO');
 const PORT = process.env.PORT || 8080;
 const CHAVE_PIX = process.env.EFI_CHAVE_PIX;
 
-if (!CHAVE_PIX) {
-    console.error('❌ EFI_CHAVE_PIX não definida no .env');
-    process.exit(1);
+let efiReady = true;
+
+if (!process.env.EFI_CHAVE_PIX) {
+  console.error('❌ EFI_CHAVE_PIX ausente — PIX desativado, mas API continua.');
+  efiReady = false;
 }
 
 const app = express();
+
+app.use((req, res, next) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
+
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(204);
+  }
+
+  next();
+});
+
+app.get('/health', (req, res) => {
+  res.status(200).json({ ok: true, uptime: process.uptime() });
+});
 
 // 🔐 IMPORTANTE PARA VPS / HTTPS
 app.set('trust proxy', 1);
@@ -39,11 +58,22 @@ const Coupon = require('./models/Coupon');
 const Affiliate = require('./models/Affiliate');
 const Category = require('./models/Category'); // (NOVO)
 
-// --- CONFIGURAÇÃO DO BANCO DE DADOS ---
+// ===============================
+// CONFIGURAÇÃO DO BANCO DE DADOS
+// ===============================
 const MONGODB_URI = process.env.MONGODB_URI;
-mongoose.connect(MONGODB_URI, { }).then(() => {
-    console.log('Conectado ao MongoDB!');
-}).catch(err => console.error(err));
+
+if (!MONGODB_URI) {
+    console.error('❌ MONGODB_URI não definida — API sobe sem banco');
+} else {
+    mongoose.connect(MONGODB_URI)
+        .then(() => {
+            console.log('✅ Conectado ao MongoDB!');
+        })
+        .catch(err => {
+            console.error('❌ Erro ao conectar no MongoDB:', err.message);
+        });
+}
 
 // --- CONFIGURAÇÃO DO RESEND ---
 const resend = new Resend(process.env.RESEND_API_KEY);
@@ -71,12 +101,10 @@ try {
         throw new Error(`Certificado não encontrado em: ${efiOptions.certificate}. Verifique seu .env e o caminho do arquivo.`);
     }
     
-    efi = new Gerencianet(efiOptions); 
-    console.log(`SDK da EFI inicializado. Modo Sandbox: ${efiOptions.sandbox}`);
-} catch (error) {
-    console.error('Erro CRÍTICO ao inicializar o SDK da EFI:');
-    console.error(error.message);
-    process.exit(1); 
+  efi = new Gerencianet(efiOptions);
+} catch (e) {
+  console.error('❌ EFI falhou — PIX desativado:', e.message);
+  efiReady = false;
 }
 // --- Helper de Validação de Senha ---
 function isPasswordStrong(password) {
@@ -90,14 +118,23 @@ function isPasswordStrong(password) {
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.options('*', (req, res) => res.sendStatus(204));
+
+// ===============================
+// SESSION (RAILWAY SAFE)
+// ===============================
+const isProd = process.env.NODE_ENV === 'production';
 
 app.use(session({
-    secret: process.env.SESSION_SECRET,
+    name: 'forcewar.sid',
+    secret: process.env.SESSION_SECRET || 'force-war-dev-secret',
     resave: false,
     saveUninitialized: false,
+    proxy: true, // 🔑 importante no Railway
     cookie: {
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax'
+        secure: isProd,      // HTTPS em produção
+        sameSite: 'lax',
+        httpOnly: true
     }
 }));
 
@@ -177,11 +214,9 @@ passport.deserializeUser(async (id, done) => {
 
 
 // --- Middleware para checar autenticação ---
-function isAuthenticated(req, res, next) {
-    if (req.isAuthenticated()) {
-        return next();
-    }
-    res.redirect('/login');
+function requireAuthPage(req, res, next) {
+  if (req.isAuthenticated()) return next();
+  return res.redirect('/login');
 }
 
 // --- Middleware para checar se é Admin ---
@@ -210,64 +245,72 @@ async function isAffiliate(req, res, next) {
     }
 }
 
-
 // --- ROTAS DE ARQUIVOS ESTÁTICOS E PÁGINAS ---
-app.use(express.static(path.join(__dirname, '../public')));
+const PUBLIC_DIR = path.join(__dirname, '../public');
+app.use(express.static(PUBLIC_DIR));
 
+// ---------- AUTH ----------
 app.get('/login', (req, res) => {
     if (req.isAuthenticated()) return res.redirect('/');
-    res.sendFile(path.join(__dirname, '../login.html'));
+    res.sendFile(path.join(PUBLIC_DIR, 'login.html'));
 });
+
 app.get('/register', (req, res) => {
     if (req.isAuthenticated()) return res.redirect('/');
-    res.sendFile(path.join(__dirname, '../register.html'));
+    res.sendFile(path.join(PUBLIC_DIR, 'register.html'));
 });
+
 app.get('/forgot-password', (req, res) => {
     if (req.isAuthenticated()) return res.redirect('/');
-    res.sendFile(path.join(__dirname, '../forgot-password.html'));
-});
-app.get('/pagamento-pix.html', isAuthenticated, (req, res) => {
-    res.sendFile(path.join(__dirname, '../pagamento-pix.html'));
+    res.sendFile(path.join(PUBLIC_DIR, 'forgot-password.html'));
 });
 
-// --- Rotas de Conta de Usuário ---
-app.get('/minha-conta', isAuthenticated, (req, res) => {
-    res.sendFile(path.join(__dirname, '../minha-conta.html'));
-});
-app.get('/meus-pedidos', isAuthenticated, (req, res) => {
-    res.sendFile(path.join(__dirname, '../meus-pedidos.html'));
-});
-app.get('/pedido-detalhes', isAuthenticated, (req, res) => {
-    res.sendFile(path.join(__dirname, '../pedido-detalhes.html'));
+app.get('/pagamento-pix.html', requireAuthPage, (req, res) => {
+    res.sendFile(path.join(PUBLIC_DIR, 'pagamento-pix.html'));
 });
 
-// --- (NOVA) Rota do Painel de Afiliado ---
-app.get('/affiliate-dashboard.html', isAuthenticated, (req, res) => {
-    res.sendFile(path.join(__dirname, '../affiliate-dashboard.html'));
+// ---------- CONTA ----------
+app.get('/minha-conta', requireAuthPage, (req, res) => {
+    res.sendFile(path.join(PUBLIC_DIR, 'minha-conta.html'));
 });
 
-
-// --- ROTAS DO PAINEL ADMIN ---
-app.get('/admin', isAuthenticated, isAdmin, (req, res) => {
-    res.sendFile(path.join(__dirname, '../admin.html'));
-});
-app.get('/admin/products', isAuthenticated, isAdmin, (req, res) => {
-    res.sendFile(path.join(__dirname, '../admin-products.html'));
-});
-app.get('/admin/coupons', isAuthenticated, isAdmin, (req, res) => {
-    res.sendFile(path.join(__dirname, '../admin-coupons.html'));
-});
-app.get('/admin/affiliates', isAuthenticated, isAdmin, (req, res) => {
-    res.sendFile(path.join(__dirname, '../admin-affiliates.html'));
-});
-app.get('/admin/withdrawals', isAuthenticated, isAdmin, (req, res) => {
-    res.sendFile(path.join(__dirname, '../admin-withdrawals.html'));
-});
-// (NOVA) Rota da página de Categorias
-app.get('/admin/categories', isAuthenticated, isAdmin, (req, res) => {
-    res.sendFile(path.join(__dirname, '../admin-categories.html'));
+app.get('/meus-pedidos', requireAuthPage, (req, res) => {
+    res.sendFile(path.join(PUBLIC_DIR, 'meus-pedidos.html'));
 });
 
+app.get('/pedido-detalhes', requireAuthPage, (req, res) => {
+    res.sendFile(path.join(PUBLIC_DIR, 'pedido-detalhes.html'));
+});
+
+// ---------- AFILIADO ----------
+app.get('/affiliate-dashboard.html', requireAuthPage, (req, res) => {
+    res.sendFile(path.join(PUBLIC_DIR, 'affiliate-dashboard.html'));
+});
+
+// ---------- ADMIN ----------
+app.get('/admin', requireAuthPage, isAdmin, (req, res) => {
+    res.sendFile(path.join(PUBLIC_DIR, 'admin.html'));
+});
+
+app.get('/admin/products', requireAuthPage, isAdmin, (req, res) => {
+    res.sendFile(path.join(PUBLIC_DIR, 'admin-products.html'));
+});
+
+app.get('/admin/coupons', requireAuthPage, isAdmin, (req, res) => {
+    res.sendFile(path.join(PUBLIC_DIR, 'admin-coupons.html'));
+});
+
+app.get('/admin/affiliates', requireAuthPage, isAdmin, (req, res) => {
+    res.sendFile(path.join(PUBLIC_DIR, 'admin-affiliates.html'));
+});
+
+app.get('/admin/withdrawals', requireAuthPage, isAdmin, (req, res) => {
+    res.sendFile(path.join(PUBLIC_DIR, 'admin-withdrawals.html'));
+});
+
+app.get('/admin/categories', requireAuthPage, isAdmin, (req, res) => {
+    res.sendFile(path.join(PUBLIC_DIR, 'admin-categories.html'));
+});
 
 // --- ROTAS DE AUTENTICAÇÃO ---
 app.post('/register', async (req, res) => {
@@ -614,10 +657,19 @@ app.get('/api/auth/status', async (req, res) => {
     }
 });
 
-// (ROTA ATUALIZADA) /criar-pagamento
+// ===============================
+// CRIAR PAGAMENTO PIX (EFI)
+// ===============================
 app.post('/criar-pagamento', isAuthenticated, async (req, res) => {
     console.log('[Pagamento] Recebida requisição /criar-pagamento');
-    
+
+    // 🚨 BLOQUEIO DURO SE EFI NÃO ESTIVER DISPONÍVEL
+    if (!efiReady || !efi || !CHAVE_PIX) {
+        return res.status(503).send(
+            'Pagamento PIX temporariamente indisponível. Tente novamente mais tarde.'
+        );
+    }
+
     const { 
         full_name, cpf, email, 
         productId, productTitle, productPlan, 
@@ -626,122 +678,136 @@ app.post('/criar-pagamento', isAuthenticated, async (req, res) => {
         discountAmount,
         finalTotal
     } = req.body;
-    
-    const userId = req.user.id; 
+
+    const userId = req.user.id;
 
     if (!full_name || !cpf || !email || !productId || !productTitle || !productPlan || !productPrice || !finalTotal) {
         return res.status(400).send('Dados incompletos. Volte e tente novamente.');
     }
-    
+
     const orderNumber = `INV-${Date.now().toString().slice(-6)}`;
-    
-    let finalAmountInCents = 0;
-    let subtotalInCents = Math.round(parseFloat(productPrice.replace(',', '.')) * 100);
-    let discountInCents = 0;
 
     try {
-        let coupon = null; 
+        // ===============================
+        // CÁLCULOS E VALIDAÇÕES
+        // ===============================
+        let subtotalInCents = Math.round(parseFloat(productPrice.replace(',', '.')) * 100);
+        let discountInCents = 0;
+        let coupon = null;
+
         if (couponApplied) {
             coupon = await Coupon.findOne({ code: couponApplied });
-            
-            if (!coupon || !coupon.isActive || (coupon.expiresAt && coupon.expiresAt < new Date()) || (coupon.maxUses && coupon.uses >= coupon.maxUses) || subtotalInCents < coupon.minPurchase) {
+
+            if (!coupon || !coupon.isActive ||
+                (coupon.expiresAt && coupon.expiresAt < new Date()) ||
+                (coupon.maxUses && coupon.uses >= coupon.maxUses) ||
+                subtotalInCents < coupon.minPurchase
+            ) {
                 throw new Error('Cupom inválido ou expirado.');
             }
-            if (coupon.applicableProducts && coupon.applicableProducts.length > 0) {
-                 const isApplicable = coupon.applicableProducts.some(id => id.toString() === productId);
-                 if (!isApplicable) throw new Error('Cupom não aplicável a este produto.');
+
+            if (coupon.applicableProducts?.length) {
+                const isApplicable = coupon.applicableProducts.some(
+                    id => id.toString() === productId
+                );
+                if (!isApplicable) throw new Error('Cupom não aplicável a este produto.');
             }
 
-            if (coupon.discountType === 'percentage') {
-                discountInCents = Math.round(subtotalInCents * (coupon.discountValue / 100));
-            } else {
-                discountInCents = coupon.discountValue;
-            }
-            
+            discountInCents = coupon.discountType === 'percentage'
+                ? Math.round(subtotalInCents * (coupon.discountValue / 100))
+                : coupon.discountValue;
+
             if (discountInCents > subtotalInCents) discountInCents = subtotalInCents;
 
-            let frontendDiscountCents = Math.round(parseFloat(discountAmount.replace(',', '.')) * 100);
+            const frontendDiscountCents = Math.round(parseFloat(discountAmount.replace(',', '.')) * 100);
             if (discountInCents !== frontendDiscountCents) {
-                console.error(`[SEGURANÇA] Disparidade de cupom! Server: ${discountInCents} | Client: ${frontendDiscountCents}`);
                 throw new Error('Disparidade no valor do cupom.');
             }
         }
-        
-        finalAmountInCents = subtotalInCents - discountInCents;
-        
-        let frontendTotalCents = Math.round(parseFloat(finalTotal.replace(',', '.')) * 100);
-        if(finalAmountInCents !== frontendTotalCents) {
-             console.error(`[SEGURANÇA] Disparidade de total! Server: ${finalAmountInCents} | Client: ${frontendTotalCents}`);
-             throw new Error('Disparidade no valor total.');
+
+        const finalAmountInCents = subtotalInCents - discountInCents;
+        const frontendTotalCents = Math.round(parseFloat(finalTotal.replace(',', '.')) * 100);
+
+        if (finalAmountInCents !== frontendTotalCents) {
+            throw new Error('Disparidade no valor total.');
         }
 
         const valorStringEfi = (finalAmountInCents / 100).toFixed(2);
-        
+
+        // ===============================
+        // CRIAR PEDIDO
+        // ===============================
         const newOrder = new Order({
             user: userId,
-            productId: productId,
-            orderNumber: orderNumber,
-            productTitle: productTitle,
-            productPlan: productPlan,
+            productId,
+            orderNumber,
+            productTitle,
+            productPlan,
             subtotal: subtotalInCents,
-            couponApplied: couponApplied,
+            couponApplied,
             discountAmount: discountInCents,
             amount: finalAmountInCents,
             status: 'pending',
             customer: {
                 name: full_name,
                 cpf: cpf.replace(/\D/g, ''),
-                email: email
+                email
             }
         });
 
+        // ===============================
+        // PEDIDO GRÁTIS
+        // ===============================
         if (finalAmountInCents <= 0) {
-             console.log(`[Pagamento] Pedido ${orderNumber} é R$ 0,00. Processando como pago.`);
-             await newOrder.save();
-             await processAndDeliverOrder(newOrder);
-             
-             if (coupon) {
+            await newOrder.save();
+            await processAndDeliverOrder(newOrder);
+
+            if (coupon) {
                 coupon.uses += 1;
                 await coupon.save();
-                console.log(`[Cupom] Uso do cupom ${couponApplied} incrementado.`);
-             }
-             return res.redirect(`/pedido-detalhes.html?id=${newOrder._id}`);
+            }
+
+            return res.redirect(`/pedido-detalhes.html?id=${newOrder._id}`);
         }
 
+        // ===============================
+        // CRIAR COBRANÇA PIX
+        // ===============================
         const body = {
             calendario: { expiracao: 3600 },
-            devedor: { 
-                cpf: cpf.replace(/\D/g, ''), 
-                nome: full_name 
+            devedor: {
+                cpf: cpf.replace(/\D/g, ''),
+                nome: full_name
             },
-            valor: { 
-                original: valorStringEfi 
-            },
+            valor: { original: valorStringEfi },
             chave: CHAVE_PIX,
             solicitacaoPagador: `Invict - ${productTitle}`
         };
 
-        console.log(`[EFI] Criando cobrança PIX no valor de R$ ${valorStringEfi}...`);
+        console.log(`[EFI] Criando cobrança PIX R$ ${valorStringEfi}`);
+
         const pixCharge = await efi.pixCreateImmediateCharge({}, body);
-        
+
         newOrder.txid = pixCharge.txid;
         newOrder.pixCopiaECola = pixCharge.pixCopiaECola;
-        newOrder.pixQrCodeImage = pixCharge.loc.id ? (await efi.pixGenerateQRCode({ id: pixCharge.loc.id })).imagemQrcode : null;
-        
+
+        if (pixCharge.loc?.id) {
+            const qr = await efi.pixGenerateQRCode({ id: pixCharge.loc.id });
+            newOrder.pixQrCodeImage = qr.imagemQrcode;
+        }
+
         await newOrder.save();
-        
+
         if (coupon) {
             coupon.uses += 1;
             await coupon.save();
-            console.log(`[Cupom] Uso do cupom ${couponApplied} incrementado.`);
         }
 
-        console.log(`[DB] Pedido ${newOrder.id} (${orderNumber}) salvo com dados do PIX.`);
-        res.redirect(`/pagamento-pix.html?orderId=${newOrder.id}`);
+        return res.redirect(`/pagamento-pix.html?orderId=${newOrder.id}`);
 
     } catch (error) {
-        console.error('Erro ao criar pagamento PIX:', error.response ? error.response.data : error.message);
-        res.status(500).send(`Erro ao gerar o pagamento: ${error.message}`);
+        console.error('[Pagamento] Erro:', error.message);
+        return res.status(500).send(`Erro ao gerar pagamento: ${error.message}`);
     }
 });
 
@@ -1046,62 +1112,76 @@ app.delete('/api/admin/products/:id', isAuthenticated, isAdmin, async (req, res)
 
 // --- (NOVAS) ROTAS DA API DE CATEGORIAS (ADMIN) ---
 
-// GET /api/admin/categories
-app.get('/api/admin/categories', isAuthenticated, isAdmin, async (req, res) => {
+function requireAuthApi(req, res, next) {
+    if (req.isAuthenticated && req.isAuthenticated()) {
+        return next();
+    }
+    return res.status(401).json({ message: 'Não autenticado' });
+}
+
+function isAdminApi(req, res, next) {
+    if (req.user?.role === 'admin') {
+        return next();
+    }
+    return res.status(403).json({ message: 'Acesso negado' });
+}
+
+app.get('/api/admin/categories', requireAuthApi, isAdminApi, async (req, res) => {
     try {
         const categories = await Category.find().sort({ name: 1 });
-        res.json(categories);
+        return res.status(200).json(categories);
     } catch (err) {
-        res.status(500).json({ message: err.message });
+        console.error('[API][CATEGORIES][GET]', err);
+        return res.status(500).json({ message: 'Erro ao buscar categorias' });
     }
 });
 
-// POST /api/admin/categories
-app.post('/api/admin/categories', isAuthenticated, isAdmin, async (req, res) => {
+app.post('/api/admin/categories', requireAuthApi, isAdminApi, async (req, res) => {
     try {
         const newCategory = new Category({ name: req.body.name });
         await newCategory.save();
-        res.status(201).json(newCategory);
+        return res.status(201).json(newCategory);
     } catch (err) {
         if (err.code === 11000) {
-            return res.status(400).json({ message: 'Erro: Já existe uma categoria com este nome.' });
+            return res.status(400).json({ message: 'Categoria já existe.' });
         }
-        res.status(400).json({ message: err.message });
+        return res.status(400).json({ message: err.message });
     }
 });
 
-// PUT /api/admin/categories/:id
-app.put('/api/admin/categories/:id', isAuthenticated, isAdmin, async (req, res) => {
+app.put('/api/admin/categories/:id', requireAuthApi, isAdminApi, async (req, res) => {
     try {
-        const category = await Category.findByIdAndUpdate(req.params.id, { name: req.body.name }, { new: true, runValidators: true });
+        const category = await Category.findByIdAndUpdate(
+            req.params.id,
+            { name: req.body.name },
+            { new: true, runValidators: true }
+        );
         if (!category) {
             return res.status(404).json({ message: 'Categoria não encontrada' });
         }
-        res.json(category);
+        return res.json(category);
     } catch (err) {
-        if (err.code === 11000) {
-            return res.status(400).json({ message: 'Erro: Já existe um categoria com este nome.' });
-        }
-        res.status(400).json({ message: err.message });
+        return res.status(400).json({ message: err.message });
     }
 });
 
-// DELETE /api/admin/categories/:id
-app.delete('/api/admin/categories/:id', isAuthenticated, isAdmin, async (req, res) => {
+app.delete('/api/admin/categories/:id', requireAuthApi, isAdminApi, async (req, res) => {
     try {
-        // (NOVO) Antes de deletar, verifica se algum produto usa esta categoria
         const productCount = await Product.countDocuments({ category: req.params.id });
         if (productCount > 0) {
-            return res.status(400).json({ message: `Não é possível deletar esta categoria, pois ${productCount} produto(s) estão a usá-la. Reatribua os produtos primeiro.` });
+            return res.status(400).json({
+                message: `Existem ${productCount} produto(s) usando esta categoria.`
+            });
         }
-        
+
         const category = await Category.findByIdAndDelete(req.params.id);
         if (!category) {
             return res.status(404).json({ message: 'Categoria não encontrada' });
         }
-        res.json({ message: 'Categoria deletada com sucesso' });
+
+        return res.json({ message: 'Categoria deletada com sucesso' });
     } catch (err) {
-        res.status(500).json({ message: err.message });
+        return res.status(500).json({ message: err.message });
     }
 });
 
@@ -1505,3 +1585,6 @@ app.post('/api/affiliate/request-withdrawal', isAuthenticated, isAffiliate, asyn
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 Servidor rodando na porta ${PORT}`);
 });
+
+process.on('uncaughtException', err => console.error('uncaughtException', err));
+process.on('unhandledRejection', err => console.error('unhandledRejection', err));
