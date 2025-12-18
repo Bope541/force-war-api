@@ -88,8 +88,6 @@ function isPasswordStrong(password) {
     return password.length >= minLength && hasUpper && hasLower && hasNumber && hasSymbol;
 }
 
-const cors = require('cors');
-
 app.use(cors({
   origin: [
     'https://bope541.github.io',
