@@ -79,24 +79,20 @@ app.set('trust proxy', 1);
 app.use((req, res, next) => {
   const origin = req.headers.origin;
 
-  // Se houver origins configuradas, valida. Se não houver, não libera credentials.
-  if (origin && allowedOrigins.length > 0 && allowedOrigins.includes(origin)) {
-    res.setHeader('Access-Control-Allow-Origin', origin);
-    res.setHeader('Vary', 'Origin'); // evita cache errado por origem
-    res.setHeader('Access-Control-Allow-Credentials', 'true');
-  } else if (origin && allowedOrigins.length === 0) {
-    // Sem whitelist definida: ainda responde, mas SEM credentials (evita configuração inválida)
+  if (origin && allowedOrigins.includes(origin)) {
     res.setHeader('Access-Control-Allow-Origin', origin);
     res.setHeader('Vary', 'Origin');
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
   }
 
   res.setHeader(
     'Access-Control-Allow-Headers',
-    'Content-Type, X-Requested-With'
+    'Origin, X-Requested-With, Content-Type, Accept, Authorization'
   );
+
   res.setHeader(
     'Access-Control-Allow-Methods',
-    'GET,POST,PUT,PATCH,DELETE,OPTIONS'
+    'GET, POST, PUT, PATCH, DELETE, OPTIONS'
   );
 
   // Preflight
@@ -104,7 +100,7 @@ app.use((req, res, next) => {
     return res.sendStatus(204);
   }
 
-  return next();
+  next();
 });
 
 // Healthcheck (ótimo pro Railway)
