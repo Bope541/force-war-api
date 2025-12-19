@@ -4,7 +4,7 @@ require('dotenv').config();
 
 const express = require('express');
 const app = express();
-
+const MongoStore = require('connect-mongo');
 const allowedOrigins = (process.env.FRONTEND_ORIGIN || '')
   .split(',')
   .map(o => o.trim())
@@ -90,6 +90,26 @@ console.log('🔥 SERVER.JS DA API CARREGADO');
 
 // 🔐 IMPORTANTE PARA Railway / Proxy / HTTPS
 app.set('trust proxy', 1);
+
+app.use(session({
+  name: 'forcewar.sid',
+  secret: process.env.SESSION_SECRET,
+  resave: false,
+  saveUninitialized: false,
+
+  // 🔥 A PARTE QUE FALTAVA
+  store: MongoStore.create({
+    mongoUrl: process.env.MONGODB_URI,
+    collectionName: 'sessions'
+  }),
+
+  cookie: {
+    httpOnly: true,
+    secure: true,     // Railway é HTTPS
+    sameSite: 'none', // obrigatório
+    maxAge: 1000 * 60 * 60 * 24
+  }
+}));
 
 // Middleware CORS seguro
 app.use((req, res, next) => {
