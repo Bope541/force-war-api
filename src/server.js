@@ -1007,11 +1007,17 @@ app.post('/api/validate-coupon', isAuthenticatedApi, async (req, res) => {
 // ==================================================
 app.get('/api/auth/status', async (req, res) => {
   try {
-    if (typeof req.isAuthenticated === 'function' && req.isAuthenticated() && req.user) {
-      const affiliate = await Affiliate.findOne({
-        user: req.user.id || req.user._id,
-        status: 'active',
-      });
+    if (req.isAuthenticated && req.isAuthenticated() && req.user) {
+      let affiliate = null;
+
+      try {
+        affiliate = await Affiliate.findOne({
+          user: req.user._id,
+          status: 'active',
+        });
+      } catch (e) {
+        console.warn('Affiliate não disponível');
+      }
 
       return res.json({
         loggedIn: true,
@@ -1024,10 +1030,10 @@ app.get('/api/auth/status', async (req, res) => {
       });
     }
 
-    return res.json({ loggedIn: false });
+    return res.status(401).json({ loggedIn: false });
   } catch (err) {
     console.error('Erro em /api/auth/status:', err);
-    return res.json({ loggedIn: false });
+    return res.status(500).json({ loggedIn: false });
   }
 });
 
