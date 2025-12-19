@@ -2,7 +2,7 @@
   "name": "force-war-api",
   "version": "1.0.0",
   "description": "Sistema API Force War Store",
-  "main": "src/server.js",
+  "main": "server.js",
   "scripts": {
     "start": "server.js",
     "dev": "server.js"
@@ -32,4 +32,5 @@
     "node": ">=18"
   }
 }
+
 
