@@ -1,42 +1,31 @@
 'use strict';
 
-// =====================================
-// 🔥 DOTENV SEMPRE PRIMEIRO
-// =====================================
 require('dotenv').config();
 
-console.log('🔥 SERVER INICIANDO');
-
-// =====================================
-// IMPORTS
-// =====================================
 const express = require('express');
-const mongoose = require('mongoose');
-
-// =====================================
-// APP
-// =====================================
 const app = express();
 
-// =====================================
-// ROTAS BÁSICAS (ANTES DE TUDO)
-// =====================================
+const allowedOrigins = (process.env.FRONTEND_ORIGIN || '')
+  .split(',')
+  .map(o => o.trim())
+  .filter(Boolean);
+
+console.log('🌐 Allowed origins:', allowedOrigins);
+
+console.log('🔥 SERVER INICIANDO');
+const mongoose = require('mongoose');
+
 app.get('/', (req, res) => res.status(200).send('API ONLINE'));
 app.get('/health', (req, res) => res.status(200).json({ ok: true }));
 app.get('/favicon.ico', (req, res) => res.status(204).end());
 
-// =====================================
-// LISTEN — IMEDIATO (CRÍTICO)
-// =====================================
+
 const PORT = process.env.PORT || 8080;
 
 app.listen(PORT, '0.0.0.0', () => {
   console.log('🚀 API ESCUTANDO NA PORTA', PORT);
 });
 
-// =====================================
-// INICIALIZAÇÕES EM BACKGROUND
-// =====================================
 (async () => {
   try {
     console.log('🔄 Inicializando serviços...');
@@ -89,13 +78,11 @@ app.use((req, res, next) => {
     'Access-Control-Allow-Headers',
     'Origin, X-Requested-With, Content-Type, Accept, Authorization'
   );
-
   res.setHeader(
     'Access-Control-Allow-Methods',
     'GET, POST, PUT, PATCH, DELETE, OPTIONS'
   );
 
-  // Preflight
   if (req.method === 'OPTIONS') {
     return res.sendStatus(204);
   }
