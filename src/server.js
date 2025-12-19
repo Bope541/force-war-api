@@ -15,6 +15,33 @@ console.log('🌐 Allowed origins:', allowedOrigins);
 console.log('🔥 SERVER INICIANDO');
 const mongoose = require('mongoose');
 
+function requireAuthApi(req, res, next) {
+  try {
+    if (
+      typeof req.isAuthenticated === 'function' &&
+      req.isAuthenticated() &&
+      req.user
+    ) {
+      return next();
+    }
+
+    console.log('[AUTH API] Não autenticado');
+    return res.status(401).json({ message: 'Não autenticado' });
+
+  } catch (err) {
+    console.error('[AUTH API] Erro:', err);
+    return res.status(401).json({ message: 'Não autenticado' });
+  }
+}
+
+function isAdminApi(req, res, next) {
+  if (!req.user || req.user.isAdmin !== true) {
+    console.log('[AUTH API] Usuário não é admin');
+    return res.status(403).json({ message: 'Admin only' });
+  }
+  next();
+}
+
 app.get('/', (req, res) => res.status(200).send('API ONLINE'));
 app.get('/health', (req, res) => res.status(200).json({ ok: true }));
 app.get('/favicon.ico', (req, res) => res.status(204).end());
@@ -1587,25 +1614,6 @@ app.get('/api/products/id/:id', async (req, res) => {
 });
 
 // ==================================================
-// AUTH API (ADMIN — BLINDADO)
-// ==================================================
-function requireAuthApi(req, res, next) {
-  try {
-    if (typeof req.isAuthenticated === 'function' && req.isAuthenticated() && req.user) {
-      return next();
-    }
-    return res.status(401).json({ message: 'Não autorizado' });
-  } catch {
-    return res.status(401).json({ message: 'Não autorizado' });
-  }
-}
-
-function isAdminApi(req, res, next) {
-  if (req.user?.role === 'admin') return next();
-  return res.status(403).json({ message: 'Acesso negado' });
-}
-
-// ==================================================
 // ROTAS ADMIN — PRODUTOS
 // ==================================================
 app.get('/api/admin/products', requireAuthApi, isAdminApi, async (req, res) => {
@@ -1671,35 +1679,6 @@ app.delete('/api/admin/products/:id', requireAuthApi, isAdminApi, async (req, re
     return res.status(500).json({ message: 'Erro interno.' });
   }
 });
-
-//-- Revisado!
-
-// ==================================================
-// AUTH API — BLINDADO (NUNCA QUEBRA OPTIONS)
-// ==================================================
-function requireAuthApi(req, res, next) {
-  try {
-    if (typeof req.isAuthenticated === 'function' && req.isAuthenticated() && req.user) {
-      return next();
-    }
-    return res.status(401).json({ message: 'Não autenticado' });
-  } catch (err) {
-    console.error('[AUTH API] Erro:', err);
-    return res.status(401).json({ message: 'Não autenticado' });
-  }
-}
-
-function isAdminApi(req, res, next) {
-  try {
-    if (req.user && req.user.role === 'admin') {
-      return next();
-    }
-    return res.status(403).json({ message: 'Acesso negado' });
-  } catch (err) {
-    console.error('[ADMIN API] Erro:', err);
-    return res.status(403).json({ message: 'Acesso negado' });
-  }
-}
 
 // ==================================================
 // CATEGORIAS — ADMIN API
@@ -1855,31 +1834,6 @@ app.delete('/api/admin/coupons/:id', requireAuthApi, isAdminApi, async (req, res
 });
 
 //-- Revisado!
-
-// ==================================================
-// AUTH API — BLINDADO
-// ==================================================
-function requireAuthApi(req, res, next) {
-  try {
-    if (typeof req.isAuthenticated === 'function' && req.isAuthenticated() && req.user) {
-      return next();
-    }
-    return res.status(401).json({ message: 'Não autenticado' });
-  } catch (err) {
-    console.error('[AUTH API] Erro:', err);
-    return res.status(401).json({ message: 'Não autenticado' });
-  }
-}
-
-function isAdminApi(req, res, next) {
-  try {
-    if (req.user?.role === 'admin') return next();
-    return res.status(403).json({ message: 'Acesso negado' });
-  } catch (err) {
-    console.error('[ADMIN API] Erro:', err);
-    return res.status(403).json({ message: 'Acesso negado' });
-  }
-}
 
 // ==================================================
 // AFILIADOS — ADMIN API
