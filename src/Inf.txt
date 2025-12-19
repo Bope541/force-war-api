@@ -1,8 +1,0 @@
-<<<<<<< HEAD
-MongoDB - Banco de Dados Usado
-
-=======
-MongoDB - Banco de Dados Usado
-
->>>>>>> 24da522 (chore: clean repo and sync lockfile)
-Railway - Hospedar os JS.
