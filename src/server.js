@@ -99,7 +99,7 @@ app.use(session({
 
   // 🔥 A PARTE QUE FALTAVA
   store: MongoStore.create({
-    mongoUrl: process.env.MONGODB_URI,
+    mongoUrl: process.env.MONGODB_URL,
     collectionName: 'sessions'
   }),
 
