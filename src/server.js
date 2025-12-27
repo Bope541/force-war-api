@@ -80,13 +80,19 @@ const LocalStrategy = require('passport-local').Strategy;
 
 console.log('🔥 SERVER.JS DA API CARREGADO');
 
-// ==================================================
-// CORS (CORRETO PARA credentials: 'include')
-// ==================================================
-// Defina no Railway:
-// FRONTEND_ORIGIN=https://SEU-SITE.com
-// (se tiver mais de um, use separado por vírgula)
+import cors from 'cors';
 
+app.use(cors({
+    origin: 'https://bope541.github.io',
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization']
+}));
+
+app.options('*', cors({
+    origin: 'https://bope541.github.io',
+    credentials: true
+}));
 
 // 🔐 IMPORTANTE PARA Railway / Proxy / HTTPS
 app.set('trust proxy', 1);
